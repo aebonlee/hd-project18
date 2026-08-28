@@ -78,8 +78,8 @@
       <h2><span class="step">1</span> Old / New BOM 업로드</h2>
       <p class="desc">전분기(Old) · 당분기(New) BOM을 올리면 Assy·품번 단위로 신규/삭제/변경을 판정하고, ①에서 만든 Item Master로 MH를 환산해 Assy별로 합산합니다.</p>
       <div class="upload-row">
-        <div class="dropzone" id="dz-bom-old"><strong>Old(-1Q) BOM</strong>Assy / 품번 / 품명 / 개수<div class="fname"></div></div>
-        <div class="dropzone" id="dz-bom-new"><strong>New(0Q) BOM</strong>Assy / 품번 / 품명 / 개수<div class="fname"></div></div>
+        <div class="dropzone" id="dz-bom-old"><strong>Old(-1Q) BOM</strong>Assy / 품번 / 품명 / 개수 / 조립조건<div class="fname"></div></div>
+        <div class="dropzone" id="dz-bom-new"><strong>New(0Q) BOM</strong>Assy / 품번 / 품명 / 개수 / 조립조건<div class="fname"></div></div>
       </div>
       <input type="file" id="in-bom-old" accept=".xlsx,.xls,.csv" style="display:none">
       <input type="file" id="in-bom-new" accept=".xlsx,.xls,.csv" style="display:none">
@@ -98,7 +98,7 @@
       <h3 style="margin:18px 0 8px;font-size:13.5px;">변경 라인 상세 (신규·삭제·변경만)</h3>
       <div class="table-wrap">
         <table class="grid">
-          <thead><tr><th>Assy</th><th>품번</th><th>품명</th><th>구분</th><th>Old 개수</th><th>New 개수</th></tr></thead>
+          <thead><tr><th>Assy</th><th>품번</th><th>품명</th><th>조립조건</th><th>구분</th><th>Old 개수</th><th>New 개수</th></tr></thead>
           <tbody id="bom-line-body"></tbody>
         </table>
       </div>
@@ -130,23 +130,62 @@
     </div>
   </section>
 
-  <!-- ④ MH 산출 (다음 단계) -->
+  <!-- ④ MH 산출 -->
   <section id="tab4" class="tab-panel">
     <div class="card">
-      <div class="next-step">
-        <h3>④ MH 산출 — 다음 단계</h3>
-        <p>①~③(Item Master · BOM 비교 · 대표사양)이 갖춰지면, 대표사양으로 확정된 옵션 조합만 골라 1대분 기준 최종 MH를 산출하고 전분기 대비 변동을 기종별 그래프로 보여주는 단계입니다.</p>
-        <p style="margin-top:8px;">지금은 앞의 세 단계 계산 로직을 정확하게 만드는 데 집중했고, 이 단계는 위 세 결과를 조합하는 로직만 남아 있어 다음 회차에 이어서 구현합니다.</p>
+      <div class="tentative-badge">⚠ 잠정 로직 — 제출자(이제명 님) 확인 전. BOM비교·MH옵션분석 화면의 "조립조건/AND조건" 구조로 역추론했습니다. 자세한 근거는 CLAUDE.md·Dev_md 참고.</div>
+      <h2><span class="step">1</span> 전제조건</h2>
+      <ul class="precond-list" id="tab4-precond">
+        <li id="pc-item" class="pc-pending">① Item Master</li>
+        <li id="pc-bom" class="pc-pending">② BOM 비교</li>
+        <li id="pc-rep" class="pc-pending">③ 대표사양 언피벗</li>
+        <li id="pc-repsel" class="pc-pending">④ 대표사양 선정</li>
+      </ul>
+      <button class="btn" id="btn-compute-model-mh" disabled>기종별 1대분 MH 산출</button>
+    </div>
+
+    <div class="card" id="model-mh-result" style="display:none">
+      <h2><span class="step">2</span> 기종별 1대분 MH — 전분기 대비</h2>
+      <div class="table-wrap">
+        <table class="grid">
+          <thead><tr><th>기종</th><th>대표사양 선정</th><th>Old MH</th><th>New MH</th><th>ΔMH</th></tr></thead>
+          <tbody id="model-mh-body"></tbody>
+        </table>
       </div>
+      <p class="note" id="model-mh-note"></p>
+    </div>
+
+    <div class="card" id="model-mh-detail" style="display:none">
+      <h2><span class="step">3</span> 변경 내역 — 기종을 클릭하세요</h2>
+      <div id="model-mh-detail-body" class="note">위 표에서 기종 행을 클릭하면 대표사양 조건과 산출식이 여기 표시됩니다.</div>
     </div>
   </section>
 
-  <!-- ⑤ MH 옵션 분석 (다음 단계) -->
+  <!-- ⑤ MH 옵션 분석 -->
   <section id="tab5" class="tab-panel">
     <div class="card">
-      <div class="next-step">
-        <h3>⑤ MH 옵션 분석 — 다음 단계</h3>
-        <p>옵션(Char)·값(C.Val)을 골라 AND 조건으로 좁힌 뒤, 그 조건에 해당하는 Assy들의 MH 변동 순위를 보여주는 단계입니다. ④ MH 산출이 먼저 갖춰져야 정확한 값을 낼 수 있어 다음 회차로 넘깁니다.</p>
+      <div class="tentative-badge">⚠ 잠정 로직 — 제출자(이제명 님) 확인 전. 랭킹 표는 옵션 단독 영향(Common 라인 제외), "선택 조건 상세"는 Common 포함 1대분 총량입니다 — 서로 다른 질문에 다른 집계라 의도적으로 갈랐습니다.</div>
+      <h2><span class="step">1</span> 옵션별 MH 변동 순위</h2>
+      <p class="desc">대표사양 데이터에 등장한 모든 옵션값을 단독 조건으로 걸었을 때의 매칭 Assy 수·MH 변동입니다(AND 조합 없이 개별 랭킹).</p>
+      <button class="btn" id="btn-rank-options" disabled>옵션별 랭킹 계산</button>
+      <div class="table-wrap" style="margin-top:14px;">
+        <table class="grid">
+          <thead><tr><th>옵션(Char)</th><th>값(C.Val)</th><th>옵션명</th><th>값이름</th><th>Assy 수</th><th>Old MH</th><th>New MH</th><th>ΔMH</th><th></th></tr></thead>
+          <tbody id="rank-options-body"></tbody>
+        </table>
+      </div>
+    </div>
+
+    <div class="card" id="cond-detail-card" style="display:none">
+      <h2><span class="step">2</span> 선택 조건 상세</h2>
+      <div class="upload-row" id="cond-selected-chips"></div>
+      <button class="btn ghost" id="btn-clear-conditions">선택 초기화</button>
+      <div class="cond-stats" id="cond-stats"></div>
+      <div class="table-wrap" style="margin-top:14px;">
+        <table class="grid">
+          <thead><tr><th>구분</th><th>Assy</th><th>품번</th><th>품명</th><th>Old 개수</th><th>New 개수</th></tr></thead>
+          <tbody id="cond-line-body"></tbody>
+        </table>
       </div>
     </div>
   </section>
@@ -154,6 +193,22 @@
 </main>
 
 <footer class="footer">MH Analyzer · 예제 데이터는 전부 가상값입니다(scripts/make_samples.py)</footer>
+
+<!-- ④⑤ 잠정 로직 안내 — 세션당 1회, ④ 또는 ⑤ 첫 진입 시 -->
+<div id="tentative-modal" class="modal-overlay" hidden>
+  <div class="modal-box" role="dialog" aria-modal="true" aria-labelledby="tentative-modal-title">
+    <h3 id="tentative-modal-title">④⑤ 탭 — 안내</h3>
+    <p><strong>① Item Master · ② BOM 비교 · ③ 대표사양</strong>은 이메일 원문에 명시된 요구사항대로 계산 로직·테스트까지 확정 구현했습니다.</p>
+    <p><strong>④ MH 산출 · ⑤ MH 옵션 분석</strong>은 이메일 원문에 집계 공식이 없어, 첨부 스크린샷(BOM비교 탭의 "조립조건" 컬럼, MH옵션분석 탭의 "옵션 선택(AND 조합)" UI)의 구조를 근거로 역추론해 만든 <strong>잠정 로직</strong>입니다.</p>
+    <ul>
+      <li>BOM 라인마다 "조립조건"(Common 또는 옵션코드=값)이 있고, 선택한 옵션 조합과 AND로 일치하는 라인만 MH에 더한다고 가정했습니다.</li>
+      <li>④는 기종별로 ③에서 선정된 대표사양 조건을 자동으로 적용해 1대분 총 MH를 냅니다.</li>
+      <li>⑤ 랭킹 표는 옵션 하나씩의 단독 영향(Common 제외), "선택 조건 상세"는 Common 포함 총량입니다.</li>
+    </ul>
+    <p>정리가 된 만큼만 정확하게 표기했고, 계산식·테스트는 CLAUDE.md·Dev_md에 근거와 함께 남겨뒀습니다. <strong>제출자(이제명 님) 확인 전까지는 검증용으로만 참고해 주세요.</strong></p>
+    <button class="btn" id="tentative-modal-close">확인했습니다</button>
+  </div>
+</div>
 
 <script src="js/logic.js"></script>
 <script src="js/app.js"></script>
