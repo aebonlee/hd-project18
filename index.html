@@ -1,0 +1,154 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="robots" content="noindex, nofollow">
+<title>MH Analyzer — OEM MH 옵션 조립비 산출 자동화</title>
+<meta name="description" content="ERP·MES 생산 데이터로 OEM MH 계약용 옵션 조립비를 자동 산출하는 도구.">
+<meta property="og:title" content="MH Analyzer">
+<meta property="og:description" content="ERP·MES 생산 데이터로 OEM MH 계약용 옵션 조립비를 자동 산출.">
+<meta property="og:type" content="website">
+<meta property="og:site_name" content="MH Analyzer">
+<link rel="icon" href="favicon-32.png">
+<link rel="apple-touch-icon" href="apple-touch-icon.png">
+<link rel="stylesheet" href="css/style.css">
+<!-- SheetJS는 리포에 동봉된 로컬 사본을 쓴다 — 폐쇄망에서도 즉시 뜨도록 -->
+<script src="lib/xlsx.full.min.js"></script>
+</head>
+<body>
+
+<header class="topbar">
+  <div class="wrap">
+    <h1>MH Analyzer</h1>
+    <p>ERP·MES 생산 데이터 기반 OEM MH 옵션 조립비 산출 자동화</p>
+    <span class="badge">기획: 이제명 · HD건설기계 글로벌생산기술팀</span>
+  </div>
+</header>
+
+<nav class="tabs">
+  <div class="wrap" style="display:flex;">
+    <button class="tab-btn active" onclick="switchTab('tab1', this)">① Item Master</button>
+    <button class="tab-btn" onclick="switchTab('tab2', this)">② BOM 비교</button>
+    <button class="tab-btn" onclick="switchTab('tab3', this)">③ 대표사양</button>
+    <button class="tab-btn" onclick="switchTab('tab4', this)">④ MH 산출</button>
+    <button class="tab-btn" onclick="switchTab('tab5', this)">⑤ MH 옵션 분석</button>
+  </div>
+</nav>
+
+<main class="wrap">
+
+  <!-- ① Item Master -->
+  <section id="tab1" class="tab-panel active">
+    <div class="card">
+      <h2><span class="step">1</span> 원본 파일 업로드</h2>
+      <p class="desc">품목 원장(품번·품명·STM분류)과 STM분류별 개수당 공수(MH) 테이블, 두 파일을 올리면 조인합니다.</p>
+      <div class="upload-row">
+        <div class="dropzone" id="dz-item-list"><strong>A. 품목 원장</strong>품번 / 품명 / STM분류<div class="fname"></div></div>
+        <div class="dropzone" id="dz-item-mh"><strong>B. STM분류별 공수(MH)</strong>STM분류 / 개수 / 작업시간(MH)<div class="fname"></div></div>
+      </div>
+      <input type="file" id="in-item-list" accept=".xlsx,.xls,.csv" style="display:none">
+      <input type="file" id="in-item-mh" accept=".xlsx,.xls,.csv" style="display:none">
+      <button class="btn" id="btn-build-item-master" disabled>최종 Item Master 생성</button>
+    </div>
+
+    <div class="card" id="item-master-result" style="display:none">
+      <h2><span class="step">2</span> 결과 <span id="item-master-count" style="font-weight:400;color:var(--sub);font-size:12px;"></span></h2>
+      <div class="note" id="item-master-note"></div>
+      <div class="table-wrap" style="margin-top:12px;">
+        <table class="grid">
+          <thead><tr><th>품번</th><th>품명</th><th>STM분류</th><th>개수</th><th>작업시간(MH)</th></tr></thead>
+          <tbody id="item-master-body"></tbody>
+        </table>
+      </div>
+      <button class="btn ghost" id="export-item-master" style="margin-top:12px;">CSV/엑셀 내보내기</button>
+    </div>
+  </section>
+
+  <!-- ② BOM 비교 -->
+  <section id="tab2" class="tab-panel">
+    <div class="card">
+      <h2><span class="step">1</span> Old / New BOM 업로드</h2>
+      <p class="desc">전분기(Old) · 당분기(New) BOM을 올리면 Assy·품번 단위로 신규/삭제/변경을 판정하고, ①에서 만든 Item Master로 MH를 환산해 Assy별로 합산합니다.</p>
+      <div class="upload-row">
+        <div class="dropzone" id="dz-bom-old"><strong>Old(-1Q) BOM</strong>Assy / 품번 / 품명 / 개수<div class="fname"></div></div>
+        <div class="dropzone" id="dz-bom-new"><strong>New(0Q) BOM</strong>Assy / 품번 / 품명 / 개수<div class="fname"></div></div>
+      </div>
+      <input type="file" id="in-bom-old" accept=".xlsx,.xls,.csv" style="display:none">
+      <input type="file" id="in-bom-new" accept=".xlsx,.xls,.csv" style="display:none">
+      <button class="btn" id="btn-compare-bom" disabled>BOM 비교 실행</button>
+    </div>
+
+    <div class="card" id="bom-result" style="display:none">
+      <h2><span class="step">2</span> Assy별 MH 변동</h2>
+      <div class="note" id="bom-note"></div>
+      <div class="table-wrap" style="margin-top:12px;">
+        <table class="grid">
+          <thead><tr><th>Assy</th><th>Old MH</th><th>New MH</th><th>ΔMH</th></tr></thead>
+          <tbody id="bom-assy-body"></tbody>
+        </table>
+      </div>
+      <h3 style="margin:18px 0 8px;font-size:13.5px;">변경 라인 상세 (신규·삭제·변경만)</h3>
+      <div class="table-wrap">
+        <table class="grid">
+          <thead><tr><th>Assy</th><th>품번</th><th>품명</th><th>구분</th><th>Old 개수</th><th>New 개수</th></tr></thead>
+          <tbody id="bom-line-body"></tbody>
+        </table>
+      </div>
+    </div>
+  </section>
+
+  <!-- ③ 대표사양 -->
+  <section id="tab3" class="tab-panel">
+    <div class="card">
+      <h2><span class="step">1</span> 대표사양 언피벗 업로드</h2>
+      <p class="desc">기종별 옵션코드/값 언피벗 표(대표사양 여부 플래그 포함)를 Old/New 두 시점으로 올리면, 1대분 MH 계산의 기준이 될 대표사양 선정 결과와 변경 여부를 보여줍니다.</p>
+      <div class="upload-row">
+        <div class="dropzone" id="dz-rep-old"><strong>Old 대표사양</strong>기종 / 옵션코드 / 옵션값 / 옵션명 / 값이름 / 대표사양<div class="fname"></div></div>
+        <div class="dropzone" id="dz-rep-new"><strong>New 대표사양</strong>기종 / 옵션코드 / 옵션값 / 옵션명 / 값이름 / 대표사양<div class="fname"></div></div>
+      </div>
+      <input type="file" id="in-rep-old" accept=".xlsx,.xls,.csv" style="display:none">
+      <input type="file" id="in-rep-new" accept=".xlsx,.xls,.csv" style="display:none">
+      <button class="btn" id="btn-build-repspec" disabled>대표사양 비교</button>
+    </div>
+
+    <div class="card" id="repspec-result" style="display:none">
+      <h2><span class="step">2</span> 기종별 대표사양</h2>
+      <div class="table-wrap">
+        <table class="grid">
+          <thead><tr><th>기종</th><th>선정/전체</th><th>대표사양 내역</th><th>변경 여부</th></tr></thead>
+          <tbody id="repspec-body"></tbody>
+        </table>
+      </div>
+    </div>
+  </section>
+
+  <!-- ④ MH 산출 (다음 단계) -->
+  <section id="tab4" class="tab-panel">
+    <div class="card">
+      <div class="next-step">
+        <h3>④ MH 산출 — 다음 단계</h3>
+        <p>①~③(Item Master · BOM 비교 · 대표사양)이 갖춰지면, 대표사양으로 확정된 옵션 조합만 골라 1대분 기준 최종 MH를 산출하고 전분기 대비 변동을 기종별 그래프로 보여주는 단계입니다.</p>
+        <p style="margin-top:8px;">지금은 앞의 세 단계 계산 로직을 정확하게 만드는 데 집중했고, 이 단계는 위 세 결과를 조합하는 로직만 남아 있어 다음 회차에 이어서 구현합니다.</p>
+      </div>
+    </div>
+  </section>
+
+  <!-- ⑤ MH 옵션 분석 (다음 단계) -->
+  <section id="tab5" class="tab-panel">
+    <div class="card">
+      <div class="next-step">
+        <h3>⑤ MH 옵션 분석 — 다음 단계</h3>
+        <p>옵션(Char)·값(C.Val)을 골라 AND 조건으로 좁힌 뒤, 그 조건에 해당하는 Assy들의 MH 변동 순위를 보여주는 단계입니다. ④ MH 산출이 먼저 갖춰져야 정확한 값을 낼 수 있어 다음 회차로 넘깁니다.</p>
+      </div>
+    </div>
+  </section>
+
+</main>
+
+<footer class="footer">MH Analyzer · 예제 데이터는 전부 가상값입니다(scripts/make_samples.py)</footer>
+
+<script src="js/logic.js"></script>
+<script src="js/app.js"></script>
+</body>
+</html>
